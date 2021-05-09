@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>rhy3h - GPwith3JS</title>
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link rel="shortcut icon" href="files/images/favicon.ico" />
+		<link rel="stylesheet" type="text/css" href="files/main.css">
+	</head>
+	<body>
+
+		<div id="panel">
+
+			<div id="header">
+				<h1><a href="index.html">GPwith3JS</a></h1>
+
+				<div id="sections">
+					<span class="selected">docs</span>
+					<a href="examples/index.html#minimal">examples</a>
+				</div>
+
+				<div id="expandButton"></div>
+			</div>
+
+			<div id="panelScrim"></div>
+
+			<div id="contentWrapper">
+				<div id="content">
+					<h2>Homeworks</h2>
+					<ul>
+						<li><a href="homeworks/hw1.html" target="viewer">hw1</a></li>
+						<li><a href="homeworks/hw2.html" target="viewer">hw2</a></li>
+						<li><a href="homeworks/hw3.html" target="viewer">hw3</a></li>
+						<li><a href="homeworks/hw4.html" target="viewer">hw4</a></li>
+						<li><a href="homeworks/hw5.html" target="viewer">hw5</a></li>
+						<li><a href="homeworks/linktohw6.html" target="viewer">hw6</a></li>
+					</ul>
+					<h2>Code</h2>
+					<ul>
+						<li><a href="https://github.com/rhy3h/GPwith3JS/" target="_blank">github</a></li>
+						<li><a href="https://github.com/rhy3h/GPwith3JS/archive/refs/heads/gh-pages.zip">download</a></li>
+					</ul>
+					<h2>Contact</h2>
+					<ul>
+						<li><a href="https://github.com/rhy3h" target="_blank">author</a></li>
+						<li><a href="https://mail.google.com/mail/?view=cm&fs=1&to=ricciyeh880427@gmail.com" target="_blank">gmail</a></li>
+					</ul>
+				</div>
+			</div>
+
+		</div>
+
+		<script>
+			var panel = document.getElementById( 'panel' );
+			var expandButton = document.getElementById( 'expandButton' );
+			var panelScrim = document.getElementById( 'panelScrim' );
+	
+			expandButton.addEventListener( 'click', function ( event ) {
+	
+				panel.classList.toggle( 'open' );
+				event.preventDefault();
+	
+			} );
+	
+			panelScrim.onclick = function ( event ) {
+	
+				event.preventDefault();
+				panel.classList.toggle( 'open' );
+	
+			};
+	
+		</script>
+
+		<iframe id="viewer" name="viewer" src="demo.html"></iframe>
+
+	</body>
+</html>

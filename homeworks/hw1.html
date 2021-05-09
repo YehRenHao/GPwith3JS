@@ -1,0 +1,328 @@
+
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<title>three.js Dynamic Drive</title>
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<link rel="shortcut icon" href="../files/images/favicon.ico" />
+		<link type="text/css" rel="stylesheet" href="main.css">
+	</head>
+
+	<body>
+		<div id="info">
+			<h2><a href="http://threejs.org" target="_blank" rel="noopener">three.js</a> - Dynamic Drive<br>W,A,S,D to MOVE</h2>
+		</div>
+
+		<script src="../js/KeyboardState.js"></script>
+
+		<script type="module">
+
+			import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.117.0/build/three.module.js';
+			import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.117.0/examples/jsm/controls/OrbitControls.js';
+			import { OBJLoader } from 'https://cdn.jsdelivr.net/npm/three@0.117.0/examples/jsm/loaders/OBJLoader.js';
+			import { MTLLoader } from 'https://cdn.jsdelivr.net/npm/three@0.117.0/examples/jsm/loaders/MTLLoader.js';
+			
+			var SCREEN_WIDTH = window.innerWidth;
+			var SCREEN_HEIGHT = window.innerHeight;
+			var aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+
+			var keyboard = new KeyboardState();
+			var clock = new THREE.Clock();
+
+			var container;
+			var camera, cameraMap, scene, renderer;
+			var Cars = [];
+			
+			(function () {
+				Math.clamp = function (val, min, max) {
+					return Math.min(Math.max(val, min), max);
+				}
+			})();
+			
+			function MathClamp(val, min, max) {
+				return Math.min(Math.max(val, min), max);
+			}
+			
+			function exponentialEaseOut(k) {
+				return k === 1 ? 1 : - Math.pow(2, - 10 * k) + 1;
+			}
+			
+			class Car {
+				constructor(modelName, size = 20, scene) {
+					readModel(modelName, size, scene);
+					this.speed = 0;
+					this.maxSpeed = 120;
+					this.maxSpeedReverse = -this.maxSpeed * 0.5;
+					this.acceleration = 30;
+					this.accelerationReverse = 0;
+					this.carOrientation = 0;
+					this.length = 1;
+					this.wheelOrientation = 0;
+					this.turningRadius = 6;
+					this.steeringWheelSpeed = 1.5;
+					this.maxSteeringRotation = 0.6;
+					this.deceleration = this.acceleration * 0.8;
+					this.brakingDeceleration = 1;
+					this.brakePower = 5;
+				}
+			
+				update(delta) {
+
+					this.accelerationReverse = this.acceleration * 2;
+					if (keyboard.pressed("W")) {
+						this.speed = Math.clamp(this.speed + delta * this.acceleration, this.maxSpeedReverse, this.maxSpeed);
+						this.acceleration = Math.clamp(this.acceleration + delta, - 10, 10);
+					}
+					if (keyboard.pressed("S")) {
+						this.speed = Math.clamp(this.speed - delta * this.accelerationReverse, this.maxSpeedReverse, this.maxSpeed);
+						this.acceleration = Math.clamp(this.acceleration - delta, - 10, 10);
+					}
+					if (keyboard.pressed("space")) {
+						this.brakingDeceleration = this.brakePower;
+					}
+					if (keyboard.pressed("A")) {
+						this.wheelOrientation = Math.clamp(this.wheelOrientation + delta * this.steeringWheelSpeed, - this.maxSteeringRotation, this.maxSteeringRotation);
+					}
+					if (keyboard.pressed("D")) {
+						this.wheelOrientation = Math.clamp(this.wheelOrientation - delta * this.steeringWheelSpeed, - this.maxSteeringRotation, this.maxSteeringRotation);
+					}
+					// this.speed decay
+					if (!(keyboard.pressed("W") || keyboard.pressed("S"))) {
+
+						if (this.speed > 0) {
+							let k = exponentialEaseOut(this.speed / this.maxSpeed);
+							this.speed = Math.clamp(this.speed - k * delta * this.deceleration * this.brakingDeceleration, 0, this.maxSpeed);
+							this.acceleration = Math.clamp(this.acceleration - k * delta, -10, 10);
+						} else {
+							let k = exponentialEaseOut(this.speed / this.maxSpeedReverse);
+							this.speed = Math.clamp(this.speed + k * delta * this.accelerationReverse * this.brakingDeceleration, this.maxSpeedReverse, 0);
+							this.acceleration = Math.clamp(this.acceleration + k * delta, - 10, 10);
+						}
+					}
+					// steering decay
+					if (!(keyboard.pressed("A") || keyboard.pressed("D"))) {
+						if (this.wheelOrientation > 0) {
+							this.wheelOrientation = Math.clamp(this.wheelOrientation - delta * this.steeringWheelSpeed, 0, this.maxSteeringRotation);
+						} else {
+							this.wheelOrientation = Math.clamp(this.wheelOrientation + delta * this.steeringWheelSpeed, - this.maxSteeringRotation, 0);
+						}
+					}
+
+					let forwardDelta = - this.speed * delta;
+
+					this.carOrientation -= (forwardDelta * this.turningRadius * 0.02) * this.wheelOrientation;
+					let root = scene.getObjectByName('Taxi');
+					if (root) {
+						// console.log(this.speed);
+						root.position.x += Math.sin(this.carOrientation) * forwardDelta;
+						root.position.z += Math.cos(this.carOrientation) * forwardDelta;
+						root.rotation.y = this.carOrientation;
+					}
+				}
+			}
+
+			function readModel (modelName, targetSize = 40, scene) {
+
+				console.log("Loading " + modelName);
+				//objNameList.push(modelName);
+
+				let onProgress = function(xhr) {
+
+					if (xhr.lengthComputable) {
+					let percentComplete = xhr.loaded / xhr.total * 100;
+						console.log(Math.round(percentComplete, 2) + '% downloaded');
+					}
+
+				};
+
+				let onError = function(xhr) {};
+
+				let mtlLoader = new MTLLoader();
+				mtlLoader.setPath('../files/models/');
+				mtlLoader.load(modelName+'.mtl', function(materials) {
+
+					materials.preload();
+
+					let objLoader = new OBJLoader();
+					objLoader.setMaterials(materials);
+					objLoader.setPath('../files/models/');
+					objLoader.load(modelName+'.obj', function(object) {
+
+						let theObject =  unitize (object, targetSize);
+						theObject.add ( new THREE.BoxHelper (theObject) )
+						theObject.name = modelName;
+						scene.add (theObject);
+						// according to OBJ to adjust
+						// theObject.setRotationFromEuler (new THREE.Euler (0, 3.1416, 0, 'XYZ'))
+
+					}, onProgress, onError);
+
+				});
+
+			}
+
+			function unitize (object, targetSize) {  
+
+				// find bounding box of 'object'
+				let box3 = new THREE.Box3();
+				box3.setFromObject (object);
+				let size = new THREE.Vector3();
+				size.subVectors (box3.max, box3.min);
+				let center = new THREE.Vector3();
+				center.addVectors(box3.max, box3.min).multiplyScalar (0.5);
+
+				console.log ('Center: ' + center.x + ', '+center.y + ', '+center.z );
+				console.log ('Size: ' + size.x + ', ' +  size.y + ', '+size.z );
+
+				// uniform scaling according to objSize
+				let objSize = Math.max (size.x, size.y, size.z);
+				let scaleSet = targetSize/objSize;
+
+				let theObject =  new THREE.Object3D();
+				theObject.add (object);
+				object.scale.set (scaleSet, scaleSet, scaleSet);
+				object.position.set (-center.x*scaleSet, -center.y*scaleSet + size.y/2*scaleSet, -center.z*scaleSet);
+				object.rotation.y = Math.PI;
+
+				return theObject;
+
+			}
+
+			init();
+			animate();
+
+			function init() {
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				// scene
+
+				scene = new THREE.Scene();
+				
+				// camera
+
+				camera = new THREE.PerspectiveCamera( 30, aspect, 1, 10000 );
+				camera.position.set( 0, 100, 100 );
+
+				// cameraMap
+				
+				cameraMap = new THREE.OrthographicCamera(-100, 100, 100, -100, -50, 50);
+				cameraMap.position.set(0, 50, 0);
+				cameraMap.up.set(1, 0, 0);
+
+				// renderer
+
+				renderer = new THREE.WebGLRenderer();
+				renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+				renderer.setScissorTest (true);
+
+				container.appendChild( renderer.domElement );
+
+				// controls
+
+				var controls = new OrbitControls( camera, renderer.domElement );
+
+				// grid
+
+				let gridXZ = new THREE.GridHelper(200, 20, 'red', 'black');
+				scene.add(gridXZ);
+
+				// resize
+
+				window.addEventListener( 'resize', onWindowResize, false );
+				
+				// light 
+
+				let directionalLight = new THREE.DirectionalLight( 0xffffff, 1 );
+				scene.add( directionalLight );
+
+				// Car
+
+				Cars.push(new Car('Taxi', 20, scene));
+
+				// Subject
+				let geometry = new THREE.CylinderGeometry( 5, 5, 20, 32 );
+				let material1 = new THREE.MeshBasicMaterial( {color: "black"} );
+				let material2 = new THREE.MeshBasicMaterial( {color: "red"} );
+				let material3 = new THREE.MeshBasicMaterial( {color: "blue"} );
+				let material4 = new THREE.MeshBasicMaterial( {color: "orange"} );
+				let material5 = new THREE.MeshBasicMaterial( {color: "green"} );
+				let cylinder1 = new THREE.Mesh( geometry, material1 );
+				let cylinder2 = new THREE.Mesh( geometry, material2 );
+				cylinder2.position.set(-75, 0, 75);
+				let cylinder3 = new THREE.Mesh( geometry, material3 );
+				cylinder3.position.set(-75, 0, -75);
+				let cylinder4 = new THREE.Mesh( geometry, material4 );
+				cylinder4.position.set(75, 0, 75);
+				let cylinder5 = new THREE.Mesh( geometry, material5 );
+				cylinder5.position.set(75, 0, -75);
+				scene.add( cylinder1 );
+				scene.add( cylinder2 );
+				scene.add( cylinder3);
+				scene.add( cylinder4 );
+				scene.add( cylinder5 );
+			}
+
+			function onWindowResize() {
+
+				SCREEN_WIDTH = window.innerWidth;
+				SCREEN_HEIGHT = window.innerHeight;
+
+				camera.aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+
+			}
+
+			function updateCar() {
+
+				let dt = clock.getDelta();
+				Cars[0].update(dt);
+				keyboard.update();
+
+			}
+
+			function animate() {
+				
+				updateCar();
+				requestAnimationFrame( animate );
+				render();
+
+			}
+
+			function render() {
+				
+				let Taxi = scene.getObjectByName('Taxi');
+
+				if (Taxi != undefined) {
+					let test = Taxi.localToWorld(new THREE.Vector3(0, 100, 100));
+					
+					camera.position.copy(test);
+					camera.lookAt(Taxi.position.x, 0, Taxi.position.z);
+
+					//cameraMap.position.set(Taxi.position.x, 50, Taxi.position.z);
+				}
+
+				// scene
+				
+				renderer.setViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+				renderer.setScissor(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+				renderer.setClearColor(0xcce0ff, 1);
+				renderer.render( scene, camera );
+				
+				// map
+				
+				renderer.setViewport(0, 0, SCREEN_HEIGHT / 4, SCREEN_HEIGHT / 4);
+				renderer.setScissor(0, 0,  SCREEN_HEIGHT / 4, SCREEN_HEIGHT / 4);
+				cameraMap.rotation.x = -Math.PI / 2;
+				renderer.setClearColor(0xffffff, 1);
+				renderer.render(scene, cameraMap);
+
+			}
+
+		</script>
+	</body>
+</html>
